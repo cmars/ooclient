@@ -152,7 +152,7 @@ recognized operations are `fetch` and `delete`.
 
 ```
 $ oo cond operation fetch < auth.json > auth-fetch-only.json
-oo delete < auth-fetch-only.json 
+$ oo delete < auth-fetch-only.json 
 2015/09/20 14:07:03 403 Forbidden: verification failed: caveat "operation fetch" not satisfied: operation "delete" not allowed
 ```
 
