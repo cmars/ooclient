@@ -43,7 +43,7 @@ OPTIONS:
 ### Example
 
 ```
-$ echo "hunter2" | oonew
+$ echo "hunter2" | oo new
 [{"caveats":[{"cid":"object 5zxFasj4FBpBm4nJL5MY7ugWwi3EqgecFgngesFqaMHt"}],"location":"","identifier":"af68ce02fffed6acd80e4eda8bde339b99e60bab252d3fe7","signature":"478ac5c9d76668a02850ebbec63eaed56a93ea70e831bfe8c468efab364d570d"}]
 ```
 
