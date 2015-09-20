@@ -26,6 +26,8 @@ import (
 	"strings"
 
 	"github.com/codegangsta/cli"
+	"gopkg.in/macaroon-bakery.v1/bakery"
+	"gopkg.in/macaroon-bakery.v1/bakery/checkers"
 	"gopkg.in/macaroon.v1"
 )
 
@@ -44,71 +46,125 @@ var condCommand = cli.Command{
 		cli.StringFlag{
 			Name: "output, o",
 		},
+		cli.StringFlag{
+			Name:  "location, loc, l",
+			Usage: "location of service for third-party caveat",
+		},
+		cli.StringFlag{
+			Name:  "key, k",
+			Usage: "base64-encoded public key of service for third-party caveat",
+		},
 	},
 }
 
+type condContext struct {
+	*cli.Context
+}
+
 func doCond(c *cli.Context) {
-	run(c, func(c *cli.Context) error {
-		var (
-			input  io.ReadCloser
-			output io.WriteCloser
-			err    error
-		)
+	condCtx := condContext{c}
+	run(c, condCtx.exec)
+}
 
-		inputFile := c.String("input")
-		if inputFile == "" {
-			input = os.Stdin
-		} else {
-			input, err = os.Open(inputFile)
-			if err != nil {
-				return fmt.Errorf("cannot open %q for input: %v", inputFile, err)
-			}
-			defer input.Close()
-		}
+func (c *condContext) exec(_ *cli.Context) error {
+	var (
+		input  io.ReadCloser
+		output io.WriteCloser
+		err    error
+	)
 
-		outputFile := c.String("output")
-		if outputFile == "" {
-			output = os.Stdout
-		} else {
-			output, err = os.Create(outputFile)
-			if err != nil {
-				return fmt.Errorf("cannot create %q for output: %v", outputFile, err)
-			}
-			defer output.Close()
-		}
-
-		urlStr := c.String("url")
-		if urlStr == "" {
-			cli.ShowAppHelp(c)
-			return errors.New("--url or OOSTORE_URL is required")
-		}
-
-		var mjson bytes.Buffer
-		_, err = io.Copy(&mjson, input)
+	inputFile := c.String("input")
+	if inputFile == "" {
+		input = os.Stdin
+	} else {
+		input, err = os.Open(inputFile)
 		if err != nil {
-			return fmt.Errorf("failed to read input: %v", err)
+			return fmt.Errorf("cannot open %q for input: %v", inputFile, err)
 		}
-		var ms macaroon.Slice
-		err = json.Unmarshal(mjson.Bytes(), &ms)
+		defer input.Close()
+	}
+
+	outputFile := c.String("output")
+	if outputFile == "" {
+		output = os.Stdout
+	} else {
+		output, err = os.Create(outputFile)
 		if err != nil {
-			return fmt.Errorf("failed to decode auth: %v", err)
+			return fmt.Errorf("cannot create %q for output: %v", outputFile, err)
 		}
-		if len(ms) == 0 {
-			return fmt.Errorf("missing auth")
-		}
-		if !c.Args().Present() {
-			cli.ShowAppHelp(c)
-			return fmt.Errorf("missing condition arguments")
-		}
-		err = ms[0].AddFirstPartyCaveat(strings.Join(c.Args(), " "))
+		defer output.Close()
+	}
+
+	urlStr := c.String("url")
+	if urlStr == "" {
+		cli.ShowAppHelp(c.Context)
+		return errors.New("--url or OOSTORE_URL is required")
+	}
+
+	var mjson bytes.Buffer
+	_, err = io.Copy(&mjson, input)
+	if err != nil {
+		return fmt.Errorf("failed to read input: %v", err)
+	}
+	var ms macaroon.Slice
+	err = json.Unmarshal(mjson.Bytes(), &ms)
+	if err != nil {
+		return fmt.Errorf("failed to decode auth: %v", err)
+	}
+	if len(ms) == 0 {
+		return fmt.Errorf("missing auth")
+	}
+	if !c.Args().Present() {
+		cli.ShowAppHelp(c.Context)
+		return fmt.Errorf("missing condition arguments")
+	}
+
+	condition := strings.Join(c.Args(), " ")
+
+	location := c.String("location")
+	if location == "" {
+		err = ms[0].AddFirstPartyCaveat(condition)
 		if err != nil {
 			return fmt.Errorf("failed to add caveat: %v", err)
 		}
-
-		err = json.NewEncoder(output).Encode(ms)
+	} else {
+		err = c.addThirdPartyCaveat(ms[0], location, condition)
 		if err != nil {
-			return fmt.Errorf("failed to encode auth: %v", err)
+			return fmt.Errorf("failed to add caveat: %v", err)
 		}
-		return nil
+	}
+
+	err = json.NewEncoder(output).Encode(ms)
+	if err != nil {
+		return fmt.Errorf("failed to encode auth: %v", err)
+	}
+	return nil
+}
+
+func (c *condContext) addThirdPartyCaveat(m *macaroon.Macaroon, location, condition string) error {
+	agent, err := bakery.NewService(bakery.NewServiceParams{
+		// TODO: persistent key pair for client
+		Locator: c,
 	})
+	if err != nil {
+		return err
+	}
+	return agent.AddCaveat(m, checkers.Caveat{Location: location, Condition: condition})
+}
+
+// PublicKeyForLocation implements bakery.PublicKeyLocator by providing the key
+// that was specified on the command line.
+// TODO: PKIWTFBBQ.
+// TODO: request keys on-demand if location is HTTPS.
+func (c *condContext) PublicKeyForLocation(loc string) (*bakery.PublicKey, error) {
+	var key bakery.Key
+	keyText := c.String("key")
+	if keyText == "" {
+		return nil, fmt.Errorf("--key is required for third-party caveat")
+	}
+	err := key.UnmarshalText([]byte(keyText))
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal key %q: %v", keyText, err)
+	}
+	return &bakery.PublicKey{key}, nil
 }
