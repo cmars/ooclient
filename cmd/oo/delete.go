@@ -29,6 +29,22 @@ import (
 	"gopkg.in/macaroon.v1"
 )
 
+var deleteCommand = cli.Command{
+	Name:    "delete",
+	Aliases: []string{"del", "rm"},
+	Usage:   "delete opaque object with auth macaroon",
+	Action:  doDelete,
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:   "url",
+			EnvVar: "OOSTORE_URL",
+		},
+		cli.StringFlag{
+			Name: "input, i",
+		},
+	},
+}
+
 func doDelete(c *cli.Context) {
 	run(c, func(c *cli.Context) error {
 		var (

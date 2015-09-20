@@ -9,6 +9,21 @@ Install the `oo` binary with:
 
 # Use
 
+```
+NAME:
+   oo - oo [command] [args]
+
+COMMANDS:
+   new                  create a new opaque object with given input, output auth macaroon
+   fetch                fetch opaque object contents with auth macaroon
+   cond                 place conditional caveats on auth macaroon
+   delete, del, rm      delete opaque object with auth macaroon
+   help, h              Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --help, -h           show help
+```
+
 Set `$OOSTORE_URL` to the base URL location of the oostore service, or use the
 `--url` option.
 
@@ -24,21 +39,19 @@ information logged to stderr.
 
 ## oo new
 
-Create a new opaque object, obtaining an auth macaroon.
-
 ```
 NAME:
-   new - oo new [-i|--input file] [-o|--output file] [-t|--content-type type]
+   new - create a new opaque object with given input, output auth macaroon
 
 USAGE:
    command new [command options] [arguments...]
 
 OPTIONS:
-   --url 		 [$OOSTORE_URL]
-   --input, -i 		
-   --output, -o 	
-   --content-type, -t 	
-```   
+   --url                 [$OOSTORE_URL]
+   --input, -i
+   --output, -o
+   --content-type, -t
+```
 
 ### Example
 
@@ -49,19 +62,17 @@ $ echo "hunter2" | oo new
 
 ## oo fetch
 
-Retrieve the opaque object with an auth macaroon.
-
 ```
 NAME:
-   fetch - oo fetch [-i|--input file] [-o|--output file]
+   fetch - fetch opaque object contents with auth macaroon
 
 USAGE:
    command fetch [command options] [arguments...]
 
 OPTIONS:
-   --url 		 [$OOSTORE_URL]
-   --input, -i 		
-   --output, -o 	
+   --url                 [$OOSTORE_URL]
+   --input, -i
+   --output, -o
 ```
 
 ### Example
@@ -73,18 +84,16 @@ hunter2
 
 ## oo delete
 
-Delete the opaque object with an auth macaroon.
-
 ```
 NAME:
-   delete - oo delete [-i|--input file]
+   delete - delete opaque object with auth macaroon
 
 USAGE:
    command delete [command options] [arguments...]
 
 OPTIONS:
    --url         [$OOSTORE_URL]
-   --input, -i 
+   --input, -i
 ```
 
 ### Example
@@ -100,19 +109,17 @@ $ oo fetch < pwd.auth
 
 ## oo cond
 
-Add caveat conditions to an auth macaroon.
-
 ```
 NAME:
-   cond - oo cond [-i|--input file] [-o|--output file] condition
+   cond - place conditional caveats on auth macaroon
 
 USAGE:
    command cond [command options] [arguments...]
 
 OPTIONS:
-   --url 		 [$OOSTORE_URL]
-   --input, -i 		
-   --output, -o 	
+   --url                 [$OOSTORE_URL]
+   --input, -i
+   --output, -o
 ```
 
 ### Examples
@@ -152,7 +159,7 @@ recognized operations are `fetch` and `delete`.
 
 ```
 $ oo cond operation fetch < auth.json > auth-fetch-only.json
-$ oo delete < auth-fetch-only.json 
+$ oo delete < auth-fetch-only.json
 2015/09/20 14:07:03 403 Forbidden: verification failed: caveat "operation fetch" not satisfied: operation "delete" not allowed
 ```
 

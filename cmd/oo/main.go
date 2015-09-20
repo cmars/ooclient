@@ -34,71 +34,11 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "oo"
 	app.Usage = "oo [command] [args]"
-	app.Commands = []cli.Command{{
-		Name:   "new",
-		Usage:  "oo new [-i|--input file] [-o|--output file] [-t|--content-type type]",
-		Action: doNew,
-		Flags: []cli.Flag{
-			cli.StringFlag{
-				Name:   "url",
-				EnvVar: "OOSTORE_URL",
-			},
-			cli.StringFlag{
-				Name: "input, i",
-			},
-			cli.StringFlag{
-				Name: "output, o",
-			},
-			cli.StringFlag{
-				Name: "content-type, t",
-			},
-		},
-	}, {
-		Name:   "fetch",
-		Usage:  "oo fetch [-i|--input file] [-o|--output file]",
-		Action: doFetch,
-		Flags: []cli.Flag{
-			cli.StringFlag{
-				Name:   "url",
-				EnvVar: "OOSTORE_URL",
-			},
-			cli.StringFlag{
-				Name: "input, i",
-			},
-			cli.StringFlag{
-				Name: "output, o",
-			},
-		},
-	}, {
-		Name:   "cond",
-		Usage:  "oo cond [-i|--input file] [-o|--output file] condition",
-		Action: doCond,
-		Flags: []cli.Flag{
-			cli.StringFlag{
-				Name:   "url",
-				EnvVar: "OOSTORE_URL",
-			},
-			cli.StringFlag{
-				Name: "input, i",
-			},
-			cli.StringFlag{
-				Name: "output, o",
-			},
-		},
-	}, {
-		Name:    "delete",
-		Aliases: []string{"del", "rm"},
-		Usage:   "oo delete [-i|--input file]",
-		Action:  doDelete,
-		Flags: []cli.Flag{
-			cli.StringFlag{
-				Name:   "url",
-				EnvVar: "OOSTORE_URL",
-			},
-			cli.StringFlag{
-				Name: "input, i",
-			},
-		},
-	}}
+	app.Commands = []cli.Command{
+		newCommand,
+		fetchCommand,
+		condCommand,
+		deleteCommand,
+	}
 	app.Run(os.Args)
 }

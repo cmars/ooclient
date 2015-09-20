@@ -28,6 +28,27 @@ import (
 	"github.com/codegangsta/cli"
 )
 
+var newCommand = cli.Command{
+	Name:   "new",
+	Usage:  "create a new opaque object with given input, output auth macaroon",
+	Action: doNew,
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:   "url",
+			EnvVar: "OOSTORE_URL",
+		},
+		cli.StringFlag{
+			Name: "input, i",
+		},
+		cli.StringFlag{
+			Name: "output, o",
+		},
+		cli.StringFlag{
+			Name: "content-type, t",
+		},
+	},
+}
+
 func doNew(c *cli.Context) {
 	run(c, func(c *cli.Context) error {
 		var (

@@ -29,6 +29,24 @@ import (
 	"gopkg.in/macaroon.v1"
 )
 
+var condCommand = cli.Command{
+	Name:   "cond",
+	Usage:  "place conditional caveats on auth macaroon",
+	Action: doCond,
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:   "url",
+			EnvVar: "OOSTORE_URL",
+		},
+		cli.StringFlag{
+			Name: "input, i",
+		},
+		cli.StringFlag{
+			Name: "output, o",
+		},
+	},
+}
+
 func doCond(c *cli.Context) {
 	run(c, func(c *cli.Context) error {
 		var (

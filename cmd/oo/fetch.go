@@ -30,6 +30,24 @@ import (
 	"gopkg.in/macaroon.v1"
 )
 
+var fetchCommand = cli.Command{
+	Name:   "fetch",
+	Usage:  "fetch opaque object contents with auth macaroon",
+	Action: doFetch,
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:   "url",
+			EnvVar: "OOSTORE_URL",
+		},
+		cli.StringFlag{
+			Name: "input, i",
+		},
+		cli.StringFlag{
+			Name: "output, o",
+		},
+	},
+}
+
 func doFetch(c *cli.Context) {
 	run(c, func(c *cli.Context) error {
 		var (
