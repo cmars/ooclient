@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 
@@ -96,9 +95,7 @@ func doFetch(c *cli.Context) {
 			_, err = io.Copy(output, resp.Body)
 			return err
 		}
-		log.Println(resp.Status)
-		_, err = io.Copy(os.Stderr, resp.Body)
-		return err
+		return errHTTPResponse(resp)
 	})
 }
 

@@ -19,11 +19,12 @@ $ export OOSTORE_URL=http://127.0.0.1:20080
 ```
 
 Commands read input from stdin and write output to stdout, unless otherwise
-specified with flags.
+specified with flags. Exit status will be non-zero on error, with diagnostic
+information logged to stderr.
 
 ## oo new
 
-Create a new opaque object, obtaining an auth token.
+Create a new opaque object, obtaining an auth macaroon.
 
 ```
 NAME:
@@ -48,7 +49,7 @@ $ echo "hunter2" | oonew
 
 ## oo fetch
 
-Retrieve the opaque object with an auth token.
+Retrieve the opaque object with an auth macaroon.
 
 ```
 NAME:
@@ -70,9 +71,36 @@ $ echo "hunter2" | oo new | oo fetch
 hunter2
 ```
 
+## oo delete
+
+Delete the opaque object with an auth macaroon.
+
+```
+NAME:
+   delete - oo delete [-i|--input file]
+
+USAGE:
+   command delete [command options] [arguments...]
+
+OPTIONS:
+   --url         [$OOSTORE_URL]
+   --input, -i 
+```
+
+### Example
+
+```
+$ echo "hunter2" | oo new > pwd.auth
+$ oo fetch < pwd.auth
+hunter2
+$ oo delete < pwd.auth
+$ oo fetch < pwd.auth
+2015/09/20 14:00:39 404 Not Found: not found: "AwXgV2LMsBXSv9u5EzM9KrVJrPwoN4b6tVSCGXaB7wX"
+```
+
 ## oo cond
 
-Add conditions to auth token.
+Add caveat conditions to an auth macaroon.
 
 ```
 NAME:
@@ -87,7 +115,12 @@ OPTIONS:
    --output, -o 	
 ```
 
-### Example
+### Examples
+
+#### client-ip-addr
+
+`client-ip-addr` takes an allowed IPv4 address as argument. Only requests from
+this client IP will be allowed.
 
 Condition met:
 
@@ -102,6 +135,25 @@ Condition not met:
 $ echo "hunter2" | oo new | oo cond client-ip-addr 1.2.3.4 | oo fetch
 2015/09/20 00:45:42 403 Forbidden
 verification failed: caveat "client-ip-addr 1.2.3.4" not satisfied: client IP address mismatch, got 127.0.0.1
+```
+
+#### time-before
+
+`time-before` sets an expiration on the authorization. Argument is an RFC3339 timestamp.
+
+```
+oo cond time-before 2015-11-01T00:00:00Z < auth.json > auth-with-exp.json
+```
+
+#### operation
+
+`operation` specifies a comma-separated list of operations allowed. Currently
+recognized operations are `fetch` and `delete`.
+
+```
+$ oo cond operation fetch < auth.json > auth-fetch-only.json
+oo delete < auth-fetch-only.json 
+2015/09/20 14:07:03 403 Forbidden: verification failed: caveat "operation fetch" not satisfied: operation "delete" not allowed
 ```
 
 # License

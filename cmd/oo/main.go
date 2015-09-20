@@ -85,6 +85,20 @@ func main() {
 				Name: "output, o",
 			},
 		},
+	}, {
+		Name:    "delete",
+		Aliases: []string{"del", "rm"},
+		Usage:   "oo delete [-i|--input file]",
+		Action:  doDelete,
+		Flags: []cli.Flag{
+			cli.StringFlag{
+				Name:   "url",
+				EnvVar: "OOSTORE_URL",
+			},
+			cli.StringFlag{
+				Name: "input, i",
+			},
+		},
 	}}
 	app.Run(os.Args)
 }

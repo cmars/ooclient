@@ -18,22 +18,22 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 
 	"github.com/codegangsta/cli"
+	"gopkg.in/macaroon.v1"
 )
 
-func doNew(c *cli.Context) {
+func doDelete(c *cli.Context) {
 	run(c, func(c *cli.Context) error {
 		var (
-			input  io.ReadCloser
-			output io.WriteCloser
-			err    error
+			input io.ReadCloser
+			err   error
 		)
 
 		inputFile := c.String("input")
@@ -47,31 +47,30 @@ func doNew(c *cli.Context) {
 			defer input.Close()
 		}
 
-		outputFile := c.String("output")
-		if outputFile == "" {
-			output = os.Stdout
-		} else {
-			output, err = os.Create(outputFile)
-			if err != nil {
-				return fmt.Errorf("cannot create %q for output: %v", outputFile, err)
-			}
-			defer output.Close()
-		}
-
 		urlStr := c.String("url")
 		if urlStr == "" {
 			cli.ShowAppHelp(c)
 			return errors.New("--url or OOSTORE_URL is required")
 		}
 
-		req, err := http.NewRequest("POST", urlStr, input)
+		var mjson bytes.Buffer
+		_, err = io.Copy(&mjson, input)
 		if err != nil {
-			return fmt.Errorf("failed to create request %q: %v", urlStr, err)
+			return fmt.Errorf("failed to read input: %v", err)
+		}
+		var ms macaroon.Slice
+		err = json.Unmarshal(mjson.Bytes(), &ms)
+		if err != nil {
+			return fmt.Errorf("failed to decode auth: %v", err)
+		}
+		id, err := objectID(ms)
+		if err != nil {
+			return fmt.Errorf("cannot determine object ID: %v", err)
 		}
 
-		contentType := c.String("content-type")
-		if contentType != "" {
-			req.Header.Set("Content-Type", contentType)
+		req, err := http.NewRequest("DELETE", urlStr+"/"+id, bytes.NewBuffer(mjson.Bytes()))
+		if err != nil {
+			return fmt.Errorf("failed to create request %q: %v", urlStr, err)
 		}
 
 		resp, err := http.DefaultClient.Do(req)
@@ -79,19 +78,10 @@ func doNew(c *cli.Context) {
 			return fmt.Errorf("error requesting %q: %v", urlStr, err)
 		}
 		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusOK {
-			_, err = io.Copy(output, resp.Body)
+		if resp.StatusCode == http.StatusNoContent {
+			_, err = io.Copy(os.Stderr, resp.Body)
 			return err
 		}
 		return errHTTPResponse(resp)
 	})
-}
-
-func errHTTPResponse(resp *http.Response) error {
-	var body bytes.Buffer
-	_, err := io.Copy(&body, resp.Body)
-	if err != nil {
-		log.Println("error reading response: %v", err)
-	}
-	return fmt.Errorf("%s: %s", resp.Status, body.String())
 }
