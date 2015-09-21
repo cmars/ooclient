@@ -117,12 +117,16 @@ USAGE:
    command cond [command options] [arguments...]
 
 OPTIONS:
-   --url                 [$OOSTORE_URL]
-   --input, -i
-   --output, -o
+   --url                         [$OOSTORE_URL]
+   --input, -i 
+   --output, -o 
+   --location, --loc, -l        location of service for third-party caveat
+   --key, -k                    base64-encoded public key of third-party service
 ```
 
-### Examples
+### First-party caveats
+
+The following conditions are recognized by the oostore service directly.
 
 #### client-ip-addr
 
@@ -162,6 +166,30 @@ $ oo cond operation fetch < auth.json > auth-fetch-only.json
 $ oo delete < auth-fetch-only.json
 2015/09/20 14:07:03 403 Forbidden: verification failed: caveat "operation fetch" not satisfied: operation "delete" not allowed
 ```
+
+### Third-party caveats
+
+For this example, you'll need a third-party caveat discharging service like the
+[timestamper](https://github.com/mattyw/timestamper). This simple third-party
+service provides independent proof that an authorization was used at a certain
+time on that server, by declaring a timestamp in its discharge.
+
+1. `go get` and run the `timestamper` server. It listens on port 8080.
+2. Obtain the timestamp service's ephemeral public key with
+   `curl http://localhost:8080/publickey`.
+3. Add a third-party caveat to an object, requiring requests on it to be timestamped:
+
+```
+$ echo "foo biscuits" | oo new | \
+	oo cond -l http://localhost:8080 -k aCU6K7U9TpiSjDVYrMMg21P89WjXT0EGmyGcLUeV2G0= is-timestamped | \
+	oo fetch
+foo biscuits
+```
+
+- `oostore` doesn't know anything about `timestamper` or what it does.
+- `timestamper` doesn't know anything about `oostore`. It was developed 9 months prior to this weekend project!
+- The object creator is able to require timestamping of requests on the object, just by knowing the public key
+  and URL endpoint of the timestamping service.
 
 # License
 

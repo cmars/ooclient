@@ -52,7 +52,7 @@ var condCommand = cli.Command{
 		},
 		cli.StringFlag{
 			Name:  "key, k",
-			Usage: "base64-encoded public key of service for third-party caveat",
+			Usage: "base64-encoded public key of third-party service",
 		},
 	},
 }

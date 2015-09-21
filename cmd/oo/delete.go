@@ -18,7 +18,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,7 +25,6 @@ import (
 	"os"
 
 	"github.com/codegangsta/cli"
-	"gopkg.in/macaroon.v1"
 )
 
 var deleteCommand = cli.Command{
@@ -69,22 +67,12 @@ func doDelete(c *cli.Context) {
 			return errors.New("--url or OOSTORE_URL is required")
 		}
 
-		var mjson bytes.Buffer
-		_, err = io.Copy(&mjson, input)
+		auth, id, err := readAuth(input)
 		if err != nil {
-			return fmt.Errorf("failed to read input: %v", err)
-		}
-		var ms macaroon.Slice
-		err = json.Unmarshal(mjson.Bytes(), &ms)
-		if err != nil {
-			return fmt.Errorf("failed to decode auth: %v", err)
-		}
-		id, err := objectID(ms)
-		if err != nil {
-			return fmt.Errorf("cannot determine object ID: %v", err)
+			return err
 		}
 
-		req, err := http.NewRequest("DELETE", urlStr+"/"+id, bytes.NewBuffer(mjson.Bytes()))
+		req, err := http.NewRequest("DELETE", urlStr+"/"+id, bytes.NewBuffer(auth))
 		if err != nil {
 			return fmt.Errorf("failed to create request %q: %v", urlStr, err)
 		}
