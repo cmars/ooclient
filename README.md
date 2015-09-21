@@ -170,9 +170,9 @@ $ oo delete < auth-fetch-only.json
 ### Third-party caveats
 
 For this example, you'll need a third-party caveat discharging service like the
-[timestamper](https://github.com/mattyw/timestamper). This simple third-party
-service provides independent proof that an authorization was used at a certain
-time on that server, by declaring a timestamp in its discharge.
+[timestamper](https://github.com/mattyw/timestamper). The timestamper provides
+evidence that an authorization was used at a certain time, by declaring a
+timestamp in its discharge.
 
 1. `go get` and run the `timestamper` server. It listens on port 8080.
 2. Obtain the timestamp service's ephemeral public key with
@@ -187,7 +187,7 @@ foo biscuits
 ```
 
 - `oostore` doesn't know anything about `timestamper` or what it does.
-- `timestamper` doesn't know anything about `oostore`. It was developed 9 months prior to this weekend project!
+- `timestamper` doesn't know anything about `oostore`.
 - The object creator is able to require timestamping of requests on the object, just by knowing the public key
   and URL endpoint of the timestamping service.
 
