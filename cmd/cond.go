@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package main
+package cmd
 
 import (
 	"bytes"
@@ -31,49 +31,48 @@ import (
 	"gopkg.in/macaroon.v1"
 )
 
-var condCommand = cli.Command{
-	Name:   "cond",
-	Usage:  "place conditional caveats on auth macaroon",
-	Action: doCond,
-	Flags: []cli.Flag{
-		cli.StringFlag{
-			Name:   "url",
-			EnvVar: "OOSTORE_URL",
-		},
-		cli.StringFlag{
-			Name: "input, i",
-		},
-		cli.StringFlag{
-			Name: "output, o",
-		},
-		cli.StringFlag{
-			Name:  "location, loc, l",
-			Usage: "location of service for third-party caveat",
-		},
-		cli.StringFlag{
-			Name:  "key, k",
-			Usage: "base64-encoded public key of third-party service",
-		},
-	},
+type condCommand struct{}
+
+func NewCondCommand() *condCommand {
+	return &condCommand{}
 }
 
-type condContext struct {
-	*cli.Context
+func (c *condCommand) CLICommand() cli.Command {
+	return cli.Command{
+		Name:   "cond",
+		Usage:  "place conditional caveats on auth macaroon",
+		Action: Action(c),
+		Flags: []cli.Flag{
+			cli.StringFlag{
+				Name:   "url",
+				EnvVar: "OOSTORE_URL",
+			},
+			cli.StringFlag{
+				Name: "input, i",
+			},
+			cli.StringFlag{
+				Name: "output, o",
+			},
+			cli.StringFlag{
+				Name:  "location, loc, l",
+				Usage: "location of service for third-party caveat",
+			},
+			cli.StringFlag{
+				Name:  "key, k",
+				Usage: "base64-encoded public key of third-party service",
+			},
+		},
+	}
 }
 
-func doCond(c *cli.Context) {
-	condCtx := condContext{c}
-	run(c, condCtx.exec)
-}
-
-func (c *condContext) exec(_ *cli.Context) error {
+func (c *condCommand) Do(ctx Context) error {
 	var (
 		input  io.ReadCloser
 		output io.WriteCloser
 		err    error
 	)
 
-	inputFile := c.String("input")
+	inputFile := ctx.String("input")
 	if inputFile == "" {
 		input = os.Stdin
 	} else {
@@ -84,7 +83,7 @@ func (c *condContext) exec(_ *cli.Context) error {
 		defer input.Close()
 	}
 
-	outputFile := c.String("output")
+	outputFile := ctx.String("output")
 	if outputFile == "" {
 		output = os.Stdout
 	} else {
@@ -95,9 +94,9 @@ func (c *condContext) exec(_ *cli.Context) error {
 		defer output.Close()
 	}
 
-	urlStr := c.String("url")
+	urlStr := ctx.String("url")
 	if urlStr == "" {
-		cli.ShowAppHelp(c.Context)
+		ctx.ShowAppHelp()
 		return errors.New("--url or OOSTORE_URL is required")
 	}
 
@@ -114,21 +113,21 @@ func (c *condContext) exec(_ *cli.Context) error {
 	if len(ms) == 0 {
 		return fmt.Errorf("missing auth")
 	}
-	if !c.Args().Present() {
-		cli.ShowAppHelp(c.Context)
+	if len(ctx.Args()) == 0 {
+		ctx.ShowAppHelp()
 		return fmt.Errorf("missing condition arguments")
 	}
 
-	condition := strings.Join(c.Args(), " ")
+	condition := strings.Join(ctx.Args(), " ")
 
-	location := c.String("location")
+	location := ctx.String("location")
 	if location == "" {
 		err = ms[0].AddFirstPartyCaveat(condition)
 		if err != nil {
 			return fmt.Errorf("failed to add caveat: %v", err)
 		}
 	} else {
-		err = c.addThirdPartyCaveat(ms[0], location, condition)
+		err = condContext{ctx}.addThirdPartyCaveat(ms[0], location, condition)
 		if err != nil {
 			return fmt.Errorf("failed to add caveat: %v", err)
 		}
@@ -141,10 +140,14 @@ func (c *condContext) exec(_ *cli.Context) error {
 	return nil
 }
 
-func (c *condContext) addThirdPartyCaveat(m *macaroon.Macaroon, location, condition string) error {
+type condContext struct {
+	Context
+}
+
+func (ctx condContext) addThirdPartyCaveat(m *macaroon.Macaroon, location, condition string) error {
 	agent, err := bakery.NewService(bakery.NewServiceParams{
 		// TODO: persistent key pair for client
-		Locator: c,
+		Locator: ctx,
 	})
 	if err != nil {
 		return err
@@ -156,9 +159,9 @@ func (c *condContext) addThirdPartyCaveat(m *macaroon.Macaroon, location, condit
 // that was specified on the command line.
 // TODO: PKIWTFBBQ.
 // TODO: request keys on-demand if location is HTTPS.
-func (c *condContext) PublicKeyForLocation(loc string) (*bakery.PublicKey, error) {
+func (ctx condContext) PublicKeyForLocation(loc string) (*bakery.PublicKey, error) {
 	var key bakery.Key
-	keyText := c.String("key")
+	keyText := ctx.String("key")
 	if keyText == "" {
 		return nil, fmt.Errorf("--key is required for third-party caveat")
 	}

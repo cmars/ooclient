@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package main
+package cmd
 
 import (
 	"bytes"
@@ -31,81 +31,87 @@ import (
 	"gopkg.in/macaroon.v1"
 )
 
-var fetchCommand = cli.Command{
-	Name:   "fetch",
-	Usage:  "fetch opaque object contents with auth macaroon",
-	Action: doFetch,
-	Flags: []cli.Flag{
-		cli.StringFlag{
-			Name:   "url",
-			EnvVar: "OOSTORE_URL",
-		},
-		cli.StringFlag{
-			Name: "input, i",
-		},
-		cli.StringFlag{
-			Name: "output, o",
-		},
-	},
+type fetchCommand struct{}
+
+func NewFetchCommand() *fetchCommand {
+	return &fetchCommand{}
 }
 
-func doFetch(c *cli.Context) {
-	run(c, func(c *cli.Context) error {
-		var (
-			input  io.ReadCloser
-			output io.WriteCloser
-			err    error
-		)
+func (c *fetchCommand) CLICommand() cli.Command {
+	return cli.Command{
+		Name:   "fetch",
+		Usage:  "fetch opaque object contents with auth macaroon",
+		Action: Action(c),
+		Flags: []cli.Flag{
+			cli.StringFlag{
+				Name:   "url",
+				EnvVar: "OOSTORE_URL",
+			},
+			cli.StringFlag{
+				Name: "input, i",
+			},
+			cli.StringFlag{
+				Name: "output, o",
+			},
+		},
+	}
+}
 
-		inputFile := c.String("input")
-		if inputFile == "" {
-			input = os.Stdin
-		} else {
-			input, err = os.Open(inputFile)
-			if err != nil {
-				return fmt.Errorf("cannot open %q for input: %v", inputFile, err)
-			}
-			defer input.Close()
-		}
+func (c *fetchCommand) Do(ctx Context) error {
+	var (
+		input  io.ReadCloser
+		output io.WriteCloser
+		err    error
+	)
 
-		outputFile := c.String("output")
-		if outputFile == "" {
-			output = os.Stdout
-		} else {
-			output, err = os.Create(outputFile)
-			if err != nil {
-				return fmt.Errorf("cannot create %q for output: %v", outputFile, err)
-			}
-			defer output.Close()
-		}
-
-		urlStr := c.String("url")
-		if urlStr == "" {
-			cli.ShowAppHelp(c)
-			return errors.New("--url or OOSTORE_URL is required")
-		}
-
-		auth, id, err := readAuth(input)
+	inputFile := ctx.String("input")
+	if inputFile == "" {
+		input = os.Stdin
+	} else {
+		input, err = os.Open(inputFile)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot open %q for input: %v", inputFile, err)
 		}
+		defer input.Close()
+	}
 
-		req, err := http.NewRequest("POST", urlStr+"/"+id, bytes.NewBuffer(auth))
+	outputFile := ctx.String("output")
+	if outputFile == "" {
+		output = os.Stdout
+	} else {
+		output, err = os.Create(outputFile)
 		if err != nil {
-			return fmt.Errorf("failed to create request %q: %v", urlStr, err)
+			return fmt.Errorf("cannot create %q for output: %v", outputFile, err)
 		}
+		defer output.Close()
+	}
 
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return fmt.Errorf("error requesting %q: %v", urlStr, err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusOK {
-			_, err = io.Copy(output, resp.Body)
-			return err
-		}
-		return errHTTPResponse(resp)
-	})
+	urlStr := ctx.String("url")
+	if urlStr == "" {
+		ctx.ShowAppHelp()
+		return errors.New("--url or OOSTORE_URL is required")
+	}
+
+	auth, id, err := readAuth(input)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", urlStr+"/"+id, bytes.NewBuffer(auth))
+	if err != nil {
+		return fmt.Errorf("failed to create request %q: %v", urlStr, err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("error requesting %q: %v", urlStr, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		_, err = io.Copy(output, resp.Body)
+		return err
+	}
+	return errHTTPResponse(resp)
 }
 
 func readAuth(r io.Reader) ([]byte, string, error) {
