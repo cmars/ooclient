@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/cmars/ooclient.svg?branch=master)](https://travis-ci.org/cmars/ooclient)
+[![GoDoc](https://godoc.org/github.com/cmars/ooclient?status.svg)](https://godoc.org/github.com/cmars/ooclient)
+
 # ooclient
 
 Client for [oostore](https://github.com/cmars/oostore).
