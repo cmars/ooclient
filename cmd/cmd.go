@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package main
+package cmd
 
 import (
 	"bytes"
@@ -22,90 +22,96 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"strings"
 
-	"github.com/codegangsta/cli"
 	"gopkg.in/macaroon-bakery.v1/bakery/checkers"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 	"gopkg.in/macaroon.v1"
+
+	"github.com/codegangsta/cli"
 )
 
-var fetchCommand = cli.Command{
-	Name:   "fetch",
-	Usage:  "fetch opaque object contents with auth macaroon",
-	Action: doFetch,
-	Flags: []cli.Flag{
-		cli.StringFlag{
-			Name:   "url",
-			EnvVar: "OOSTORE_URL",
-		},
-		cli.StringFlag{
-			Name: "input, i",
-		},
-		cli.StringFlag{
-			Name: "output, o",
-		},
-	},
+// Context defines the command-line flags and other parameters exposed from the
+// command-line.
+type Context interface {
+	// Args returns a slice of string arguments after flags are parsed.
+	Args() []string
+
+	// ShowAppHelp prints command usage to the terminal.
+	ShowAppHelp()
+
+	// String returns the value specified for the given flag name, or empty
+	// string if not set.
+	String(flagName string) string
+
+	// Stdin returns the reader from standard input.
+	Stdin() io.ReadCloser
+
+	// Stdout returns the writer to standard output.
+	Stdout() io.WriteCloser
 }
 
-func doFetch(c *cli.Context) {
-	run(c, func(c *cli.Context) error {
-		var (
-			input  io.ReadCloser
-			output io.WriteCloser
-			err    error
-		)
+// Command defines an ooclient subcommand.
+type Command interface {
+	// CLICommand returns an initialized cli.Command.
+	CLICommand() cli.Command
 
-		inputFile := c.String("input")
-		if inputFile == "" {
-			input = os.Stdin
-		} else {
-			input, err = os.Open(inputFile)
-			if err != nil {
-				return fmt.Errorf("cannot open %q for input: %v", inputFile, err)
-			}
-			defer input.Close()
-		}
+	// Do implements the command action.
+	Do(ctx Context) error
+}
 
-		outputFile := c.String("output")
-		if outputFile == "" {
-			output = os.Stdout
-		} else {
-			output, err = os.Create(outputFile)
-			if err != nil {
-				return fmt.Errorf("cannot create %q for output: %v", outputFile, err)
-			}
-			defer output.Close()
-		}
+type context struct {
+	ctx *cli.Context
+}
 
-		urlStr := c.String("url")
-		if urlStr == "" {
-			cli.ShowAppHelp(c)
-			return errors.New("--url or OOSTORE_URL is required")
-		}
+// Args implements Context.
+func (ctx *context) Args() []string {
+	return []string(ctx.ctx.Args())
+}
 
-		auth, id, err := readAuth(input)
+// ShowAppHelp implements Context.
+func (ctx *context) ShowAppHelp() {
+	cli.ShowAppHelp(ctx.ctx)
+}
+
+// String implements Context.
+func (ctx *context) String(flagName string) string {
+	return ctx.ctx.String(flagName)
+}
+
+// Stdin implements Context.
+func (ctx *context) Stdin() io.ReadCloser {
+	return os.Stdin
+}
+
+// Stdout implements Context.
+func (ctx *context) Stdout() io.WriteCloser {
+	return os.Stdout
+}
+
+// Action wraps a Command with a function that can be used with the cli
+// package.
+func Action(command Command) func(*cli.Context) {
+	return func(ctx *cli.Context) {
+		err := command.Do(&context{
+			ctx: ctx,
+		})
 		if err != nil {
-			return err
+			log.Fatalf("%v", err)
 		}
+	}
+}
 
-		req, err := http.NewRequest("POST", urlStr+"/"+id, bytes.NewBuffer(auth))
-		if err != nil {
-			return fmt.Errorf("failed to create request %q: %v", urlStr, err)
-		}
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return fmt.Errorf("error requesting %q: %v", urlStr, err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusOK {
-			_, err = io.Copy(output, resp.Body)
-			return err
-		}
-		return errHTTPResponse(resp)
-	})
+func errHTTPResponse(resp *http.Response) error {
+	var body bytes.Buffer
+	_, err := io.Copy(&body, resp.Body)
+	if err != nil {
+		log.Println("error reading response: %v", err)
+	}
+	return fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(body.String()))
 }
 
 func readAuth(r io.Reader) ([]byte, string, error) {

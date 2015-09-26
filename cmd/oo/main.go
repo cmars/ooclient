@@ -21,6 +21,8 @@ import (
 	"os"
 
 	"github.com/codegangsta/cli"
+
+	"github.com/cmars/ooclient/cmd"
 )
 
 func run(c *cli.Context, f func(*cli.Context) error) {
@@ -35,10 +37,10 @@ func main() {
 	app.Name = "oo"
 	app.Usage = "oo [command] [args]"
 	app.Commands = []cli.Command{
-		newCommand,
-		fetchCommand,
-		condCommand,
-		deleteCommand,
+		cmd.NewNewCommand().CLICommand(),
+		cmd.NewFetchCommand().CLICommand(),
+		cmd.NewCondCommand().CLICommand(),
+		cmd.NewDeleteCommand().CLICommand(),
 	}
 	app.Run(os.Args)
 }
