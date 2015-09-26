@@ -18,7 +18,6 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,17 +25,16 @@ import (
 	"os"
 
 	"github.com/codegangsta/cli"
-	"gopkg.in/macaroon-bakery.v1/bakery/checkers"
-	"gopkg.in/macaroon-bakery.v1/httpbakery"
-	"gopkg.in/macaroon.v1"
 )
 
 type fetchCommand struct{}
 
+// NewFetchCommand returns a Command that fetches an opaque object.
 func NewFetchCommand() *fetchCommand {
 	return &fetchCommand{}
 }
 
+// CLICommand implements Command.
 func (c *fetchCommand) CLICommand() cli.Command {
 	return cli.Command{
 		Name:   "fetch",
@@ -57,6 +55,7 @@ func (c *fetchCommand) CLICommand() cli.Command {
 	}
 }
 
+// Do implements Command.
 func (c *fetchCommand) Do(ctx Context) error {
 	var (
 		input  io.ReadCloser
@@ -66,25 +65,25 @@ func (c *fetchCommand) Do(ctx Context) error {
 
 	inputFile := ctx.String("input")
 	if inputFile == "" {
-		input = os.Stdin
+		input = ctx.Stdin()
 	} else {
 		input, err = os.Open(inputFile)
 		if err != nil {
 			return fmt.Errorf("cannot open %q for input: %v", inputFile, err)
 		}
-		defer input.Close()
 	}
+	defer input.Close()
 
 	outputFile := ctx.String("output")
 	if outputFile == "" {
-		output = os.Stdout
+		output = ctx.Stdout()
 	} else {
 		output, err = os.Create(outputFile)
 		if err != nil {
 			return fmt.Errorf("cannot create %q for output: %v", outputFile, err)
 		}
-		defer output.Close()
 	}
+	defer output.Close()
 
 	urlStr := ctx.String("url")
 	if urlStr == "" {
@@ -112,64 +111,4 @@ func (c *fetchCommand) Do(ctx Context) error {
 		return err
 	}
 	return errHTTPResponse(resp)
-}
-
-func readAuth(r io.Reader) ([]byte, string, error) {
-	var fail string
-	var mjson bytes.Buffer
-	_, err := io.Copy(&mjson, r)
-	if err != nil {
-		return nil, fail, fmt.Errorf("failed to read input: %v", err)
-	}
-	var ms macaroon.Slice
-	err = json.Unmarshal(mjson.Bytes(), &ms)
-	if err != nil {
-		return nil, fail, fmt.Errorf("failed to decode auth: %v", err)
-	}
-	id, err := objectID(ms)
-	if err != nil {
-		return nil, fail, fmt.Errorf("cannot determine object ID: %v", err)
-	}
-
-	if len(ms) == 1 {
-		// TODO: this doesn't really address the case where the client obtains
-		// some of the needed third-party discharges, but not all of them.
-		cl := httpbakery.NewClient()
-		ms, err = cl.DischargeAll(ms[0])
-		if err != nil {
-			return nil, fail, fmt.Errorf("failed to discharge third-party caveat: %v", err)
-		}
-		mjson.Reset()
-		err = json.NewEncoder(&mjson).Encode(ms)
-		if err != nil {
-			return nil, fail, fmt.Errorf("failed to encode macaroon with discharges")
-		}
-	}
-
-	return mjson.Bytes(), id, nil
-}
-
-func objectID(ms macaroon.Slice) (string, error) {
-	var fail string
-	var id string
-	for _, m := range ms {
-		for _, cav := range m.Caveats() {
-			cond, arg, err := checkers.ParseCaveat(cav.Id)
-			if err != nil {
-				// strange, but offtopic
-				continue
-			}
-			if cond == "object" {
-				if id == "" {
-					id = arg
-				} else {
-					return fail, fmt.Errorf("multiple conflicting caveats")
-				}
-			}
-		}
-	}
-	if id == "" {
-		return fail, errors.New("not found")
-	}
-	return id, nil
 }

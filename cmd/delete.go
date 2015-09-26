@@ -29,10 +29,12 @@ import (
 
 type deleteCommand struct{}
 
+// NewDeleteCommand returns a Command that deletes an opaque object.
 func NewDeleteCommand() *deleteCommand {
 	return &deleteCommand{}
 }
 
+// CLICommand implements Command.
 func (c *deleteCommand) CLICommand() cli.Command {
 	return cli.Command{
 		Name:    "delete",
@@ -51,6 +53,7 @@ func (c *deleteCommand) CLICommand() cli.Command {
 	}
 }
 
+// Do implements Command.
 func (c *deleteCommand) Do(ctx Context) error {
 	var (
 		input io.ReadCloser
@@ -59,14 +62,14 @@ func (c *deleteCommand) Do(ctx Context) error {
 
 	inputFile := ctx.String("input")
 	if inputFile == "" {
-		input = os.Stdin
+		input = ctx.Stdin()
 	} else {
 		input, err = os.Open(inputFile)
 		if err != nil {
 			return fmt.Errorf("cannot open %q for input: %v", inputFile, err)
 		}
-		defer input.Close()
 	}
+	defer input.Close()
 
 	urlStr := ctx.String("url")
 	if urlStr == "" {

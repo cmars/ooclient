@@ -33,10 +33,13 @@ import (
 
 type condCommand struct{}
 
+// NewCondCommand returns a Command that attenuates an opaque object auth with
+// caveat conditions.
 func NewCondCommand() *condCommand {
 	return &condCommand{}
 }
 
+// CLICommand implements Command.
 func (c *condCommand) CLICommand() cli.Command {
 	return cli.Command{
 		Name:   "cond",
@@ -65,6 +68,7 @@ func (c *condCommand) CLICommand() cli.Command {
 	}
 }
 
+// Do implements Command.
 func (c *condCommand) Do(ctx Context) error {
 	var (
 		input  io.ReadCloser
@@ -74,25 +78,25 @@ func (c *condCommand) Do(ctx Context) error {
 
 	inputFile := ctx.String("input")
 	if inputFile == "" {
-		input = os.Stdin
+		input = ctx.Stdin()
 	} else {
 		input, err = os.Open(inputFile)
 		if err != nil {
 			return fmt.Errorf("cannot open %q for input: %v", inputFile, err)
 		}
-		defer input.Close()
 	}
+	defer input.Close()
 
 	outputFile := ctx.String("output")
 	if outputFile == "" {
-		output = os.Stdout
+		output = ctx.Stdout()
 	} else {
 		output, err = os.Create(outputFile)
 		if err != nil {
 			return fmt.Errorf("cannot create %q for output: %v", outputFile, err)
 		}
-		defer output.Close()
 	}
+	defer output.Close()
 
 	urlStr := ctx.String("url")
 	if urlStr == "" {

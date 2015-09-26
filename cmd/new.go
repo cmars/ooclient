@@ -17,11 +17,9 @@
 package cmd
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 
@@ -30,10 +28,12 @@ import (
 
 type newCommand struct{}
 
+// NewNewCommand returns a Command that creates a new opaque object.
 func NewNewCommand() *newCommand {
 	return &newCommand{}
 }
 
+// CLICommand implements Command.
 func (c *newCommand) CLICommand() cli.Command {
 	return cli.Command{
 		Name:   "new",
@@ -57,6 +57,7 @@ func (c *newCommand) CLICommand() cli.Command {
 	}
 }
 
+// Do implements Command.
 func (c *newCommand) Do(ctx Context) error {
 	var (
 		input  io.ReadCloser
@@ -66,25 +67,25 @@ func (c *newCommand) Do(ctx Context) error {
 
 	inputFile := ctx.String("input")
 	if inputFile == "" {
-		input = os.Stdin
+		input = ctx.Stdin()
 	} else {
 		input, err = os.Open(inputFile)
 		if err != nil {
 			return fmt.Errorf("cannot open %q for input: %v", inputFile, err)
 		}
-		defer input.Close()
 	}
+	defer input.Close()
 
 	outputFile := ctx.String("output")
 	if outputFile == "" {
-		output = os.Stdout
+		output = ctx.Stdout()
 	} else {
 		output, err = os.Create(outputFile)
 		if err != nil {
 			return fmt.Errorf("cannot create %q for output: %v", outputFile, err)
 		}
-		defer output.Close()
 	}
+	defer output.Close()
 
 	urlStr := ctx.String("url")
 	if urlStr == "" {
@@ -112,13 +113,4 @@ func (c *newCommand) Do(ctx Context) error {
 		return err
 	}
 	return errHTTPResponse(resp)
-}
-
-func errHTTPResponse(resp *http.Response) error {
-	var body bytes.Buffer
-	_, err := io.Copy(&body, resp.Body)
-	if err != nil {
-		log.Println("error reading response: %v", err)
-	}
-	return fmt.Errorf("%s: %s", resp.Status, body.String())
 }
