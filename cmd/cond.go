@@ -17,7 +17,6 @@
 package cmd
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -104,15 +103,9 @@ func (c *condCommand) Do(ctx Context) error {
 		return errors.New("--url or OOSTORE_URL is required")
 	}
 
-	var mjson bytes.Buffer
-	_, err = io.Copy(&mjson, input)
+	ms, err := unmarshalAuth(input)
 	if err != nil {
-		return fmt.Errorf("failed to read input: %v", err)
-	}
-	var ms macaroon.Slice
-	err = json.Unmarshal(mjson.Bytes(), &ms)
-	if err != nil {
-		return fmt.Errorf("failed to decode auth: %v", err)
+		return fmt.Errorf("failed to unmarshal auth: %v", err)
 	}
 	if len(ms) == 0 {
 		return fmt.Errorf("missing auth")

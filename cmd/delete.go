@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -77,12 +78,25 @@ func (c *deleteCommand) Do(ctx Context) error {
 		return errors.New("--url or OOSTORE_URL is required")
 	}
 
-	auth, id, err := readAuth(input)
+	var authBuf bytes.Buffer
+	ms, err := unmarshalAuth(input)
+	if err != nil {
+		return err
+	}
+	ms, _, err = dischargeAuth(ctx, ms)
+	if err != nil {
+		return err
+	}
+	id, err := objectID(ms)
+	if err != nil {
+		return err
+	}
+	err = json.NewEncoder(&authBuf).Encode(ms)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("DELETE", urlStr+"/"+id, bytes.NewBuffer(auth))
+	req, err := http.NewRequest("DELETE", urlStr+"/"+id, bytes.NewBuffer(authBuf.Bytes()))
 	if err != nil {
 		return fmt.Errorf("failed to create request %q: %v", urlStr, err)
 	}

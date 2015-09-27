@@ -18,15 +18,16 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"gopkg.in/macaroon-bakery.v1/bakery"
 	"gopkg.in/macaroon-bakery.v1/bakery/checkers"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 	"gopkg.in/macaroon.v1"
@@ -39,6 +40,9 @@ import (
 type Context interface {
 	// Args returns a slice of string arguments after flags are parsed.
 	Args() []string
+
+	// Bool returns the boolean value specified for the given flag name.
+	Bool(flagName string) bool
 
 	// ShowAppHelp prints command usage to the terminal.
 	ShowAppHelp()
@@ -72,6 +76,11 @@ func (ctx *context) Args() []string {
 	return []string(ctx.ctx.Args())
 }
 
+// Bool implements Context.
+func (ctx *context) Bool(flagName string) bool {
+	return ctx.ctx.Bool(flagName)
+}
+
 // ShowAppHelp implements Context.
 func (ctx *context) ShowAppHelp() {
 	cli.ShowAppHelp(ctx.ctx)
@@ -90,6 +99,14 @@ func (ctx *context) Stdin() io.ReadCloser {
 // Stdout implements Context.
 func (ctx *context) Stdout() io.WriteCloser {
 	return os.Stdout
+}
+
+func homeDir(ctx Context) (string, error) {
+	home := filepath.FromSlash(ctx.String("home"))
+	if home == "" {
+		return "", fmt.Errorf("could not determine OO_HOME, --home is required")
+	}
+	return home, nil
 }
 
 // Action wraps a Command with a function that can be used with the cli
@@ -114,39 +131,38 @@ func errHTTPResponse(resp *http.Response) error {
 	return fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(body.String()))
 }
 
-func readAuth(r io.Reader) ([]byte, string, error) {
-	var fail string
-	var mjson bytes.Buffer
-	_, err := io.Copy(&mjson, r)
+func dischargeAuth(ctx Context, ms macaroon.Slice) (macaroon.Slice, *envelope, error) {
+	if len(ms) != 1 {
+		return ms, nil, nil
+	}
+	var env *envelope
+	cl := httpbakery.NewClient()
+	mgr := keyManager{ctx}
+	kp, err := mgr.keyPair()
 	if err != nil {
-		return nil, fail, fmt.Errorf("failed to read input: %v", err)
+		return nil, nil, err
 	}
-	var ms macaroon.Slice
-	err = json.Unmarshal(mjson.Bytes(), &ms)
+	// TODO: clean this mess up
+	ms, err = bakery.DischargeAllWithKey(ms[0],
+		func(loc string, cav macaroon.Caveat) (*macaroon.Macaroon, error) {
+			if cav.Location != "client:encrypt" {
+				return cl.ObtainThirdPartyDischarge(loc, cav)
+			}
+			dm, _, err := bakery.Discharge(kp.KeyPair,
+				bakery.ThirdPartyCheckerFunc(func(caveatId, caveat string) ([]checkers.Caveat, error) {
+					env = newEnvelope()
+					err := env.UnmarshalJSON([]byte(caveat))
+					if err != nil {
+						return nil, err
+					}
+					return nil, nil
+				}), cav.Id)
+			return dm, err
+		}, kp.KeyPair)
 	if err != nil {
-		return nil, fail, fmt.Errorf("failed to decode auth: %v", err)
+		return nil, nil, err
 	}
-	id, err := objectID(ms)
-	if err != nil {
-		return nil, fail, fmt.Errorf("cannot determine object ID: %v", err)
-	}
-
-	if len(ms) == 1 {
-		// TODO: this doesn't really address the case where the client obtains
-		// some of the needed third-party discharges, but not all of them.
-		cl := httpbakery.NewClient()
-		ms, err = cl.DischargeAll(ms[0])
-		if err != nil {
-			return nil, fail, fmt.Errorf("failed to discharge third-party caveat: %v", err)
-		}
-		mjson.Reset()
-		err = json.NewEncoder(&mjson).Encode(ms)
-		if err != nil {
-			return nil, fail, fmt.Errorf("failed to encode macaroon with discharges")
-		}
-	}
-
-	return mjson.Bytes(), id, nil
+	return ms, env, nil
 }
 
 func objectID(ms macaroon.Slice) (string, error) {

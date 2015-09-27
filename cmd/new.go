@@ -17,11 +17,17 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+
+	"gopkg.in/macaroon-bakery.v1/bakery"
+	"gopkg.in/macaroon-bakery.v1/bakery/checkers"
+	"gopkg.in/macaroon.v1"
 
 	"github.com/codegangsta/cli"
 )
@@ -51,7 +57,10 @@ func (c *newCommand) CLICommand() cli.Command {
 				Name: "output, o",
 			},
 			cli.StringFlag{
-				Name: "content-type, t",
+				Name: "content-type",
+			},
+			cli.StringFlag{
+				Name: "to, t",
 			},
 		},
 	}
@@ -75,6 +84,8 @@ func (c *newCommand) Do(ctx Context) error {
 		}
 	}
 	defer input.Close()
+
+	env, input, err := encrypt(input)
 
 	outputFile := ctx.String("output")
 	if outputFile == "" {
@@ -109,8 +120,65 @@ func (c *newCommand) Do(ctx Context) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
-		_, err = io.Copy(output, resp.Body)
+		ms, err := unmarshalAuth(resp.Body)
+		if err != nil {
+			return fmt.Errorf("invalid auth response: %v", err)
+		}
+		err = newContext{ctx}.addThirdPartyCaveat(ms[0], env)
+		if err != nil {
+			return fmt.Errorf("failed to add third-party caveat: %v", err)
+		}
+		err = json.NewEncoder(output).Encode(ms)
 		return err
 	}
 	return errHTTPResponse(resp)
+}
+
+type newContext struct {
+	Context
+}
+
+func (ctx newContext) addThirdPartyCaveat(m *macaroon.Macaroon, env *envelope) error {
+	condition, err := env.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	mgr := keyManager{ctx.Context}
+	kp, err := mgr.keyPair()
+	if err != nil {
+		return err
+	}
+	agent, err := bakery.NewService(bakery.NewServiceParams{
+		Key:     kp.KeyPair,
+		Locator: clientLocator{kp},
+	})
+	if err != nil {
+		return err
+	}
+	return agent.AddCaveat(m, checkers.Caveat{Location: "client:encrypt", Condition: string(condition)})
+}
+
+type clientLocator struct {
+	*keyPair
+}
+
+// PublicKeyForLocation implements bakery.PublicKeyLocator by providing the
+// same initialized key every time.
+// TODO: support multiple key identities, getting key from command line or something.
+func (l clientLocator) PublicKeyForLocation(loc string) (*bakery.PublicKey, error) {
+	return &l.KeyPair.Public, nil
+}
+
+func unmarshalAuth(r io.Reader) (macaroon.Slice, error) {
+	var mjson bytes.Buffer
+	_, err := io.Copy(&mjson, r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read input: %v", err)
+	}
+	var ms macaroon.Slice
+	err = json.Unmarshal(mjson.Bytes(), &ms)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode auth: %v", err)
+	}
+	return ms, nil
 }
