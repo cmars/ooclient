@@ -37,6 +37,7 @@ func main() {
 	app.Name = "oo"
 	app.Usage = "oo [command] [args]"
 	app.Commands = []cli.Command{
+		cmd.NewInitCommand().CLICommand(),
 		cmd.NewNewCommand().CLICommand(),
 		cmd.NewFetchCommand().CLICommand(),
 		cmd.NewCondCommand().CLICommand(),

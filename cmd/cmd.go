@@ -40,6 +40,9 @@ type Context interface {
 	// Args returns a slice of string arguments after flags are parsed.
 	Args() []string
 
+	// Bool returns the boolean value specified for the given flag name.
+	Bool(flagName string) bool
+
 	// ShowAppHelp prints command usage to the terminal.
 	ShowAppHelp()
 
@@ -70,6 +73,11 @@ type context struct {
 // Args implements Context.
 func (ctx *context) Args() []string {
 	return []string(ctx.ctx.Args())
+}
+
+// Bool implements Context.
+func (ctx *context) Bool(flagName string) bool {
+	return ctx.ctx.Bool(flagName)
 }
 
 // ShowAppHelp implements Context.

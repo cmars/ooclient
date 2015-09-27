@@ -117,6 +117,17 @@ func (c *StubContext) Args() []string {
 	return c.args
 }
 
+func (c *StubContext) Bool(flagName string) bool {
+	if c.flags == nil {
+		return false
+	}
+	val := c.flags[flagName]
+	if val == nil {
+		return false
+	}
+	return val.(bool)
+}
+
 func (c *StubContext) ShowAppHelp() {
 	panic("help")
 }
