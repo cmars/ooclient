@@ -131,38 +131,49 @@ func errHTTPResponse(resp *http.Response) error {
 	return fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(body.String()))
 }
 
+type dischargeAcquirer struct {
+	client *httpbakery.Client
+	env    *envelope
+}
+
+// AcquireDischarge implements httpbakery.DischargeAcquirer.
+func (da *dischargeAcquirer) AcquireDischarge(firstPartyLocation string, cav macaroon.Caveat) (*macaroon.Macaroon, error) {
+	if cav.Location == "client:encrypt" {
+		dm, _, err := bakery.Discharge(da.client.Key,
+			bakery.ThirdPartyCheckerFunc(da.clientEncryptChecker), cav.Id)
+		return dm, err
+	}
+	return da.client.AcquireDischarge(firstPartyLocation, cav)
+}
+
+func (da *dischargeAcquirer) clientEncryptChecker(caveatId, caveat string) ([]checkers.Caveat, error) {
+	da.env = newEnvelope()
+	err := da.env.UnmarshalJSON([]byte(caveat))
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
 func dischargeAuth(ctx Context, ms macaroon.Slice) (macaroon.Slice, *envelope, error) {
 	if len(ms) != 1 {
 		return ms, nil, nil
 	}
-	var env *envelope
-	cl := httpbakery.NewClient()
 	mgr := keyManager{ctx}
 	kp, err := mgr.keyPair()
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO: clean this mess up
-	ms, err = bakery.DischargeAllWithKey(ms[0],
-		func(loc string, cav macaroon.Caveat) (*macaroon.Macaroon, error) {
-			if cav.Location != "client:encrypt" {
-				return cl.ObtainThirdPartyDischarge(loc, cav)
-			}
-			dm, _, err := bakery.Discharge(kp.KeyPair,
-				bakery.ThirdPartyCheckerFunc(func(caveatId, caveat string) ([]checkers.Caveat, error) {
-					env = newEnvelope()
-					err := env.UnmarshalJSON([]byte(caveat))
-					if err != nil {
-						return nil, err
-					}
-					return nil, nil
-				}), cav.Id)
-			return dm, err
-		}, kp.KeyPair)
+
+	cl := httpbakery.NewClient()
+	da := &dischargeAcquirer{client: cl}
+	cl.DischargeAcquirer = da
+	cl.Key = kp.KeyPair
+	ms, err = cl.DischargeAll(ms[0])
 	if err != nil {
 		return nil, nil, err
 	}
-	return ms, env, nil
+	return ms, da.env, nil
 }
 
 func objectID(ms macaroon.Slice) (string, error) {

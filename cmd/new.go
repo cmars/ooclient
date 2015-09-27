@@ -51,6 +51,11 @@ func (c *newCommand) CLICommand() cli.Command {
 				EnvVar: "OOSTORE_URL",
 			},
 			cli.StringFlag{
+				Name:   "home",
+				EnvVar: "OO_HOME",
+				Value:  defaultHome,
+			},
+			cli.StringFlag{
 				Name: "input, i",
 			},
 			cli.StringFlag{
