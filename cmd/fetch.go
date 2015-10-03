@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -44,6 +45,11 @@ func (c *fetchCommand) CLICommand() cli.Command {
 			cli.StringFlag{
 				Name:   "url",
 				EnvVar: "OOSTORE_URL",
+			},
+			cli.StringFlag{
+				Name:   "home",
+				EnvVar: "OO_HOME",
+				Value:  defaultHome,
 			},
 			cli.StringFlag{
 				Name: "input, i",
@@ -91,12 +97,25 @@ func (c *fetchCommand) Do(ctx Context) error {
 		return errors.New("--url or OOSTORE_URL is required")
 	}
 
-	auth, id, err := readAuth(input)
+	var authBuf bytes.Buffer
+	ms, err := unmarshalAuth(input)
+	if err != nil {
+		return err
+	}
+	ms, env, err := dischargeAuth(ctx, ms)
+	if err != nil {
+		return err
+	}
+	id, err := objectID(ms)
+	if err != nil {
+		return err
+	}
+	err = json.NewEncoder(&authBuf).Encode(ms)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", urlStr+"/"+id, bytes.NewBuffer(auth))
+	req, err := http.NewRequest("POST", urlStr+"/"+id, bytes.NewBuffer(authBuf.Bytes()))
 	if err != nil {
 		return fmt.Errorf("failed to create request %q: %v", urlStr, err)
 	}
@@ -107,7 +126,16 @@ func (c *fetchCommand) Do(ctx Context) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
-		_, err = io.Copy(output, resp.Body)
+		var contents io.Reader
+		if env != nil {
+			contents, err = env.decrypt(resp.Body)
+			if err != nil {
+				return fmt.Errorf("error decrypting contents: %v", err)
+			}
+		} else {
+			contents = resp.Body
+		}
+		_, err = io.Copy(output, contents)
 		return err
 	}
 	return errHTTPResponse(resp)

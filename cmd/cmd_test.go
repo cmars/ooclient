@@ -34,6 +34,7 @@ func Test(t *testing.T) { gc.TestingT(t) }
 
 type cmdSuite struct {
 	server *httptest.Server
+	home   string
 }
 
 var _ = gc.Suite(&cmdSuite{})
@@ -45,6 +46,7 @@ func (s *cmdSuite) SetUpTest(c *gc.C) {
 	})
 	c.Assert(err, gc.IsNil)
 	s.server = httptest.NewServer(service)
+	s.home = c.MkDir()
 }
 
 func (s *cmdSuite) TearDownTest(c *gc.C) {
@@ -59,12 +61,18 @@ func (s *cmdSuite) TestNewFetch(c *gc.C) {
 	fetchIn, newOut := io.Pipe()
 
 	newCtx := &StubContext{
-		flags: map[string]interface{}{"url": s.server.URL},
+		flags: map[string]interface{}{
+			"url":  s.server.URL,
+			"home": s.home,
+		},
 		stdin: in, stdout: newOut,
 	}
 	newCmd := cmd.NewNewCommand()
 	fetchCtx := &StubContext{
-		flags: map[string]interface{}{"url": s.server.URL},
+		flags: map[string]interface{}{
+			"url":  s.server.URL,
+			"home": s.home,
+		},
 		stdin: fetchIn, stdout: &out,
 	}
 	fetchCmd := cmd.NewFetchCommand()
@@ -83,24 +91,27 @@ func (s *cmdSuite) TestNewFetch(c *gc.C) {
 func (s *cmdSuite) TestDelete(c *gc.C) {
 	in := bytes.NewBufferString("hello world")
 	var out bytes.Buffer
-
+	flags := map[string]interface{}{
+		"url":  s.server.URL,
+		"home": s.home,
+	}
 	// create
 	c.Assert(cmd.NewNewCommand().Do(&StubContext{
-		flags: map[string]interface{}{"url": s.server.URL},
+		flags: flags,
 		stdin: in, stdout: &out,
 	}), gc.IsNil)
 	// then delete
 	c.Assert(cmd.NewDeleteCommand().Do(&StubContext{
-		flags: map[string]interface{}{"url": s.server.URL},
+		flags: flags,
 		stdin: bytes.NewBuffer(out.Bytes()),
 	}), gc.IsNil)
 	// now it's gone
 	c.Assert(cmd.NewFetchCommand().Do(&StubContext{
-		flags: map[string]interface{}{"url": s.server.URL},
+		flags: flags,
 		stdin: bytes.NewBuffer(out.Bytes()),
 	}), gc.ErrorMatches, `^404 Not Found.*`)
 	c.Assert(cmd.NewDeleteCommand().Do(&StubContext{
-		flags: map[string]interface{}{"url": s.server.URL},
+		flags: flags,
 		stdin: bytes.NewBuffer(out.Bytes()),
 	}), gc.ErrorMatches, `^404 Not Found.*`)
 }
@@ -115,6 +126,17 @@ type StubContext struct {
 
 func (c *StubContext) Args() []string {
 	return c.args
+}
+
+func (c *StubContext) Bool(flagName string) bool {
+	if c.flags == nil {
+		return false
+	}
+	val := c.flags[flagName]
+	if val == nil {
+		return false
+	}
+	return val.(bool)
 }
 
 func (c *StubContext) ShowAppHelp() {
