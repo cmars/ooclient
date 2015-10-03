@@ -41,6 +41,7 @@ func main() {
 		cmd.NewFetchCommand().CLICommand(),
 		cmd.NewCondCommand().CLICommand(),
 		cmd.NewDeleteCommand().CLICommand(),
+		cmd.NewKeyCommand().CLICommand(),
 	}
 	app.Run(os.Args)
 }

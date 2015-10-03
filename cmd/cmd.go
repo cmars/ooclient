@@ -27,12 +27,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/codegangsta/cli"
 	"gopkg.in/macaroon-bakery.v1/bakery"
 	"gopkg.in/macaroon-bakery.v1/bakery/checkers"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 	"gopkg.in/macaroon.v1"
-
-	"github.com/codegangsta/cli"
 )
 
 // Context defines the command-line flags and other parameters exposed from the

@@ -25,11 +25,11 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/codegangsta/cli"
+	"gopkg.in/basen.v1"
 	"gopkg.in/macaroon-bakery.v1/bakery"
 	"gopkg.in/macaroon-bakery.v1/bakery/checkers"
 	"gopkg.in/macaroon.v1"
-
-	"github.com/codegangsta/cli"
 )
 
 type newCommand struct{}
@@ -155,7 +155,7 @@ func (ctx newContext) addThirdPartyCaveat(m *macaroon.Macaroon, env *envelope) e
 	}
 	agent, err := bakery.NewService(bakery.NewServiceParams{
 		Key:     kp.KeyPair,
-		Locator: clientLocator{kp},
+		Locator: clientLocator{ctx.Context, kp},
 	})
 	if err != nil {
 		return err
@@ -164,14 +164,25 @@ func (ctx newContext) addThirdPartyCaveat(m *macaroon.Macaroon, env *envelope) e
 }
 
 type clientLocator struct {
-	*keyPair
+	ctx   Context
+	local *keyPair
 }
 
 // PublicKeyForLocation implements bakery.PublicKeyLocator by providing the
 // same initialized key every time.
 // TODO: support multiple key identities, getting key from command line or something.
 func (l clientLocator) PublicKeyForLocation(loc string) (*bakery.PublicKey, error) {
-	return &l.KeyPair.Public, nil
+	to := l.ctx.String("to")
+	if to != "" {
+		toBytes, err := basen.Base58.DecodeString(to)
+		if err != nil {
+			return nil, err
+		}
+		var key bakery.PublicKey
+		copy(key.Key[:], toBytes)
+		return &key, nil
+	}
+	return &l.local.Public, nil
 }
 
 func unmarshalAuth(r io.Reader) (macaroon.Slice, error) {
