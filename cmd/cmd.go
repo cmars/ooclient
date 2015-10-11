@@ -34,6 +34,8 @@ import (
 	"gopkg.in/macaroon.v1"
 )
 
+var defaultURL = "https://api.oo.cmars.tech/v1"
+
 // Context defines the command-line flags and other parameters exposed from the
 // command-line.
 type Context interface {
